@@ -175,6 +175,7 @@ def games_today(display_data=True):
         for game in data['dates'][0]['games']:
             # display away team vs home team and current score
             print(
+                f"GAME ID: {game['gamePk']}\n"
                 f"{game['teams']['away']['team']['name']} {game['teams']['away']['score']} VS {game['teams']['home']['team']['name']} {game['teams']['home']['score']}\n")
 
 
@@ -191,27 +192,14 @@ def get_todays_game_ids():
     return list_of_game_ids
 
 
-def ticker():
-    '''
+def ticker(game_id, period):
+    """
     display updates of every live game each minute
     :return:
-    '''
+    """
 
-    # politely get data from api each minute
-    # list_of_game_ids = get_todays_game_ids()
-
-    # dict_of_game_feed = {}
-
-    # for game_id in list_of_game_ids:
-
-    # event_log = []
-    '''data = fetch_data(update=True, json_cache=f'{CACHE_DIR}temp_game_feed.json',
-                      url=f'https://statsapi.web.nhl.com/api/v1/game/{2022030114}/feed/live')'''
-
-    # while data['gameData']['status']['detailedState'] == "In Progress":
-    # while True:
-    data = fetch_data(update=False, json_cache=f'{CACHE_DIR}temp_game_feed.json',
-                      url=f'https://statsapi.web.nhl.com/api/v1/game/{2022030164}/feed/live')
+    data = fetch_data(update=True, json_cache=f'{CACHE_DIR}temp_game_feed.json',
+                      url=f'https://statsapi.web.nhl.com/api/v1/game/{game_id}/feed/live')
 
     if data['gameData']['status']['detailedState'] == "Pre-Game":
         print('In Pre Game')
@@ -220,21 +208,29 @@ def ticker():
     else:
         list_of_events = data['liveData']['plays']['allPlays']
 
-        # datetime_str = event['about']['dateTime']
-        # datetime_object = datetime.strptime(datetime_str, '%Y-%m-%dT%H:%M:%SZ')
-
         now = datetime.now() + timedelta(hours=7)
 
-        # gets most recent item from events list
-        # ticker_msg = f"{event[len(data) - 1]['result']['event']}: {event[len(data) - 1]['result']['description']} (PRD: {event[len(data) - 1]['about']['period']} {event[len(data) - 1]['about']['periodTimeRemaining']})"
-        # ticker_msg = f"{event['result']['event']}: {event['result']['description']} (PRD: {event['about']['period']} {event['about']['periodTimeRemaining']})"
+        # loop through list of events and display by most recent
+        for event in reversed(range(len(list_of_events))):
+            if period == 'ALL':
+                print(
+                    f"{list_of_events[event]['result']['event']} ({list_of_events[event]['about']['ordinalNum']} P, {list_of_events[event]['about']['periodTimeRemaining']}): {list_of_events[event]['result']['description']}, @ {list_of_events[event]['about']['dateTime'][11:19]}")
+            elif period == '1':
+                if list_of_events[event]['about']['period'] == 1:
+                    print(
+                        f"{list_of_events[event]['result']['event']} ({list_of_events[event]['about']['ordinalNum']} P, {list_of_events[event]['about']['periodTimeRemaining']}): {list_of_events[event]['result']['description']}, @ {list_of_events[event]['about']['dateTime'][11:19]}")
 
-        for event in range(len(list_of_events)):
-            print(
-                f"{list_of_events[event]['result']['event']} (Period {list_of_events[event]['about']['period']}, {list_of_events[event]['about']['periodTimeRemaining']}): {list_of_events[event]['result']['description']}, @ {list_of_events[event]['about']['dateTime'][11:19]}")
+            elif period == '2':
+                if list_of_events[event]['about']['period'] == 2:
+                    print(
+                        f"{list_of_events[event]['result']['event']} ({list_of_events[event]['about']['ordinalNum']} P, {list_of_events[event]['about']['periodTimeRemaining']}): {list_of_events[event]['result']['description']}, @ {list_of_events[event]['about']['dateTime'][11:19]}")
+
+            elif period == '3':
+                if list_of_events[event]['about']['period'] == 3:
+                    print(
+                        f"{list_of_events[event]['result']['event']} ({list_of_events[event]['about']['ordinalNum']} P, {list_of_events[event]['about']['periodTimeRemaining']}): {list_of_events[event]['result']['description']}, @ {list_of_events[event]['about']['dateTime'][11:19]}")
+
             time.sleep(.75)
-        # print(f"{list_of_events}")
-
 
 
 if __name__ == '__main__':
@@ -248,5 +244,7 @@ elif len(sys.argv) >= 2 and sys.argv[1] == 'id_lookup':
     team_id_lookup(sys.argv[2])
 elif len(sys.argv) >= 2 and sys.argv[1] == 'help':
     team_id_lookup(sys.argv[2])
+elif len(sys.argv) >= 3 and sys.argv[1] == 'ticker':
+    ticker(sys.argv[2], sys.argv[3])
 else:
     globals()[sys.argv[1]]()
