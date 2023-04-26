@@ -118,7 +118,7 @@ def team_id_lookup(id_or_abbreviation):
     json_file.close()
 
 
-def create_team_roster_json(team_abbreviation):
+def create_team_roster_json(team_abbreviation, display_data=True):
     ROSTER_DIR = 'rosters/'
     if not os.path.exists(f'{CACHE_DIR}{ROSTER_DIR}'):
         os.mkdir(f'{CACHE_DIR}{ROSTER_DIR}')
@@ -126,7 +126,9 @@ def create_team_roster_json(team_abbreviation):
     data = fetch_data(update=False, json_cache=f'{CACHE_DIR}{ROSTER_DIR}{team_abbreviation}_roster.json',
                       url=f'https://statsapi.web.nhl.com/api/v1/teams/{team_id_lookup(team_abbreviation)}/roster')
 
-    return data
+    if display_data:
+        for player in data['roster']:
+            print(f"#{player['jerseyNumber']} {player['person']['fullName']}")
 
 
 def fetch_data(*, update: bool = False, json_cache: str, url: str):
@@ -194,11 +196,13 @@ def get_todays_game_ids():
 
 def ticker(game_id, period):
     """
-    display updates of every live game each minute
+    shows every play of a game
+    :param game_id:
+    :param period:
     :return:
     """
 
-    data = fetch_data(update=True, json_cache=f'{CACHE_DIR}temp_game_feed.json',
+    data = fetch_data(update=False, json_cache=f'{CACHE_DIR}temp_game_feed.json',
                       url=f'https://statsapi.web.nhl.com/api/v1/game/{game_id}/feed/live')
 
     if data['gameData']['status']['detailedState'] == "Pre-Game":
@@ -210,7 +214,11 @@ def ticker(game_id, period):
 
         now = datetime.now() + timedelta(hours=7)
 
-        # loop through list of events and display by most recent
+        # Loop through the api data forwards
+        '''
+        for event in range(len(list_of_events)):
+        '''
+        # Loop through the api data backwards
         for event in reversed(range(len(list_of_events))):
             if period == 'ALL':
                 print(
@@ -229,6 +237,11 @@ def ticker(game_id, period):
                 if list_of_events[event]['about']['period'] == 3:
                     print(
                         f"{list_of_events[event]['result']['event']} ({list_of_events[event]['about']['ordinalNum']} P, {list_of_events[event]['about']['periodTimeRemaining']}): {list_of_events[event]['result']['description']}, @ {list_of_events[event]['about']['dateTime'][11:19]}")
+            else:
+                print(
+                    "You must enter in a game id and a period.  Ex 'python main.py ticker 2022030135 1' would give you the first period plays of period 1")
+
+                break
 
             time.sleep(.75)
 
@@ -245,6 +258,6 @@ elif len(sys.argv) >= 2 and sys.argv[1] == 'id_lookup':
 elif len(sys.argv) >= 2 and sys.argv[1] == 'help':
     team_id_lookup(sys.argv[2])
 elif len(sys.argv) >= 3 and sys.argv[1] == 'ticker':
-    ticker(sys.argv[2], sys.argv[3])
+    ticker(sys.argv[2], sys.argv[3].upper())
 else:
     globals()[sys.argv[1]]()
