@@ -8,6 +8,12 @@ from datetime import datetime
 
 import requests
 import json
+import hashlib
+
+# Time stuff
+now = datetime.now() + timedelta(hours=7)
+datetime_stamp = str(now)
+timecode = datetime_stamp[11:19]
 
 # creates a cache directory if not one already
 CACHE_DIR = 'NHL_APP/cache/'
@@ -202,7 +208,12 @@ def ticker(game_id, period):
     :return:
     """
 
-    data = fetch_data(update=True, json_cache=f'{CACHE_DIR}temp_game_feed.json',
+    # If there is no game feed directory, create one to store the cache files
+    FEED_DIR = 'live_feeds/'
+    if not os.path.exists(f'{CACHE_DIR}{FEED_DIR}'):
+        os.mkdir(f'{CACHE_DIR}{FEED_DIR}')
+
+    data = fetch_data(update=True, json_cache=f'{CACHE_DIR}{FEED_DIR}{game_id}_game_feed_{timecode}.json',
                       url=f'https://statsapi.web.nhl.com/api/v1/game/{game_id}/feed/live')
 
     if data['gameData']['status']['detailedState'] == "Pre-Game":
@@ -211,8 +222,6 @@ def ticker(game_id, period):
 
     else:
         list_of_events = data['liveData']['plays']['allPlays']
-
-        now = datetime.now() + timedelta(hours=7)
 
         # Loop through the api data forwards
         '''
@@ -240,10 +249,84 @@ def ticker(game_id, period):
             else:
                 print(
                     "You must enter in a game id and a period.  Ex 'python main.py ticker 2022030135 1' would give you the first period plays of period 1")
-
                 break
 
-            #time.sleep(.75)
+            # time.sleep(.75)
+
+
+def json_diff_detect():
+
+    FEED_DIR = 'live_feeds/'
+
+    if not os.path.exists(f'{CACHE_DIR}{FEED_DIR}'):
+        os.mkdir(f'{CACHE_DIR}{FEED_DIR}')
+
+    game_id = 2022030155
+
+
+    # while True:
+
+    # monitor cache directory for comparison, by counting files and deleting after two files are created
+    file_count = 0
+
+    dir_path = f"{CACHE_DIR}{FEED_DIR}"
+    for path in os.scandir(dir_path):
+        if path.is_file():
+            file_count += 1
+    print('file count:', file_count)
+
+
+
+    # get the latest json response
+    data = fetch_data(update=True, json_cache=f'{CACHE_DIR}{FEED_DIR}{game_id}_game_feed_{timecode}.json',
+                      url=f'https://statsapi.web.nhl.com/api/v1/game/{game_id}/feed/live')
+
+
+    # display the latest play if only 1 json file present
+    if file_count <= 1:
+        first_file = os.listdir(dir_path)[0]
+
+        all_plays = data['liveData']['plays']['allPlays']
+        print(all_plays[len(all_plays) - 1]['result']['description'])
+
+
+    # display the latest play only if the json response has been updated
+    elif file_count >= 2:
+        first_file = os.listdir(dir_path)[0]
+        second_file = os.listdir(dir_path)[1]
+
+        file1_hash = ""
+        file2_hash = ""
+
+        with open(f"{CACHE_DIR}{FEED_DIR}{first_file}", "rb") as f1:
+            file1_hash = hashlib.md5(f1.read()).hexdigest()
+        with open(f"{CACHE_DIR}{FEED_DIR}{second_file}", "rb") as f2:
+            file2_hash = hashlib.md5(f2.read()).hexdigest()
+
+        '''
+        if contents json file 2 is different that contents of json file 1
+        print the latest play
+        '''
+        if file1_hash == file2_hash:
+            print('No updates')
+
+            time.sleep(3)
+
+        else:
+            print("New Plays have happened")
+            all_plays = data['liveData']['plays']['allPlays']
+            print(all_plays[len(all_plays) - 1]['result']['description'])
+
+        # remove the oldest file since it is no longer needed
+        os.remove(f"{CACHE_DIR}{FEED_DIR}{first_file}")
+
+
+# get another json response
+
+# compare it to the first one, if different, display the latest play
+
+# let the api rest...
+# time.sleep(10)
 
 
 if __name__ == '__main__':
