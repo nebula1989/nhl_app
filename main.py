@@ -202,7 +202,7 @@ def ticker(game_id, period):
     :return:
     """
 
-    data = fetch_data(update=False, json_cache=f'{CACHE_DIR}temp_game_feed.json',
+    data = fetch_data(update=True, json_cache=f'{CACHE_DIR}temp_game_feed.json',
                       url=f'https://statsapi.web.nhl.com/api/v1/game/{game_id}/feed/live')
 
     if data['gameData']['status']['detailedState'] == "Pre-Game":
@@ -243,7 +243,7 @@ def ticker(game_id, period):
 
                 break
 
-            time.sleep(.75)
+            #time.sleep(.75)
 
 
 if __name__ == '__main__':
