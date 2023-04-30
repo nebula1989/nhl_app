@@ -6,7 +6,6 @@ from pprint import pprint
 from datetime import date, timedelta, datetime
 import requests
 import json
-import hashlib
 
 TODAYS_DATE = date.today()
 
@@ -119,7 +118,7 @@ def team_id_lookup(id_or_abbreviation):
     json_file.close()
 
 
-def create_team_roster_json(team_abbreviation, display_data=True):
+def create_team_roster_json(team_abbreviation, display_data=False):
     ROSTER_DIR = 'rosters/'
     if not os.path.exists(f'{CACHE_DIR}{ROSTER_DIR}'):
         os.mkdir(f'{CACHE_DIR}{ROSTER_DIR}')
@@ -129,7 +128,7 @@ def create_team_roster_json(team_abbreviation, display_data=True):
 
     if display_data:
         for player in data['roster']:
-            print(f"#{player['jerseyNumber']} {player['person']['fullName']}")
+            print(f"#{player['jerseyNumber']} {player['position']['name']} {player['person']['fullName']} ")
 
 
 def fetch_data(*, update: bool = False, json_cache: str, url: str):
@@ -230,7 +229,7 @@ def game_plays_report(game_id, period):
     if not os.path.exists(f'{CACHE_DIR}{FEED_DIR}'):
         os.mkdir(f'{CACHE_DIR}{FEED_DIR}')
 
-    data = fetch_data(update=False, json_cache=f'{CACHE_DIR}{FEED_DIR}{game_id}_P{period}_plays.json',
+    data = fetch_data(update=True, json_cache=f'{CACHE_DIR}{FEED_DIR}{game_id}_P{period}_plays.json',
                       url=f'https://statsapi.web.nhl.com/api/v1/game/{game_id}/feed/live')
 
     if data['gameData']['status']['detailedState'] == "Pre-Game":
@@ -268,8 +267,6 @@ def game_plays_report(game_id, period):
                     "You must enter in a game id and a period.  Ex 'python main.py ticker 2022030135 1' would give you the first period plays of period 1")
                 break
 
-            # time.sleep(.75)
-
 
 def game_ending_time(game_id):
     data = fetch_data(update=False, json_cache=f'{CACHE_DIR}games_today.json',
@@ -281,14 +278,13 @@ def game_ending_time(game_id):
             time_data = game['gameDate']
             format_data = "%Y-%m-%dT%H:%M:%SZ"
             date_obj = datetime.strptime(time_data, format_data)
-            ending_time = date_obj + timedelta(hours=7)
+            ending_time = date_obj + timedelta(hours=4)
 
-            # print(ending_time)
+            print(ending_time)
             return ending_time
 
 
 def live_ticker(game_id):
-
     FEED_DIR = 'live_feeds/'
 
     dir_path = f"{CACHE_DIR}{FEED_DIR}"
@@ -296,11 +292,10 @@ def live_ticker(game_id):
     if not os.path.exists(f'{dir_path}'):
         os.mkdir(f'{dir_path}')
 
-    # while current time is less than game start time plus 3.5 hours
-    # while NOW < game_ending_time(game_id):
     recently_ticked_play = []
     ticks = 0
 
+    # while current time is less than game start time plus 4 hours
     #while datetime.now() < game_ending_time(game_id):
     while True:
         headline_msg = game_id_to_headline_message(game_id)
@@ -354,7 +349,7 @@ if __name__ == '__main__':
     elif len(sys.argv) >= 2 and sys.argv[1] == 'id_lookup':
         team_id_lookup(sys.argv[2])
     elif len(sys.argv) >= 3 and sys.argv[1] == 'report':
-        game_plays_report(sys.argv[2], sys.argv[3].upper())
+        game_plays_report(sys.argv[2], sys.argv[3])
     elif len(sys.argv) >= 3 and sys.argv[1] == 'ticker':
         live_ticker(sys.argv[2])
     elif len(sys.argv) >= 3 and sys.argv[1] == 'ending_time':
