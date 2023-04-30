@@ -3,17 +3,12 @@ import sys
 import time
 from pprint import pprint
 
-from datetime import date, timedelta
-from datetime import datetime
-
+from datetime import date, timedelta, datetime
 import requests
 import json
 import hashlib
 
-# Time stuff
-now = datetime.now() + timedelta(hours=7)
-datetime_stamp = str(now)
-timecode = datetime_stamp[11:19]
+TODAYS_DATE = date.today()
 
 # creates a cache directory if not one already
 CACHE_DIR = 'NHL_APP/cache/'
@@ -88,7 +83,7 @@ def create_team_id_dict():
 
 def team_id_lookup(id_or_abbreviation):
     """
-    Matches a team name or a team ID with its key or value respectively
+    Matches a team name or a team ID or team name abbreviation with its value or key respectively
     :param id_or_abbreviation: the name or ID which has been entered by the user in the command line. ex 'python main.py id_lookup 16' would return 'CHI' and vice versa
     :return: the key (team ID) or value (team name)
     """
@@ -138,19 +133,26 @@ def create_team_roster_json(team_abbreviation, display_data=True):
 
 
 def fetch_data(*, update: bool = False, json_cache: str, url: str):
+    '''
+    Pulls data from an api address if the cached result does not exist already
+    :param update:
+    :param json_cache:
+    :param url:
+    :return:
+    '''
     if update:
         json_data = None
     else:
         try:
             with open(json_cache, 'r') as file:
                 json_data = json.load(file)
-                print('Fetched data from local cache.')
+                # print('Fetched data from local cache.')
         except (FileNotFoundError, json.JSONDecodeError) as e:
-            print(f'No Local cache found... {e}')
+            # print(f'No Local cache found... {e}')
             json_data = None
 
     if not json_data:
-        print('Fetching new json data... (Creating local cache)')
+        # print('Fetching new json data... (Creating local cache)')
         json_data = requests.get(url).json()
         with open(json_cache, 'w') as file:
             json.dump(json_data, file, indent=4)
@@ -186,11 +188,26 @@ def games_today(display_data=True):
                 f"GAME ID: {game['gamePk']}\n"
                 f"{game['teams']['away']['team']['name']} {game['teams']['away']['score']} VS {game['teams']['home']['team']['name']} {game['teams']['home']['score']}\n")
 
+    return (
+        f"GAME ID: {game['gamePk']}\n"
+        f"{game['teams']['away']['team']['name']} {game['teams']['away']['score']} VS {game['teams']['home']['team']['name']} {game['teams']['home']['score']}\n")
 
-def get_todays_game_ids():
+
+def game_id_to_headline_message(game_id):
     todays_date = date.today()
     data = fetch_data(update=True, json_cache=f'{CACHE_DIR}games_today.json',
                       url=f'https://statsapi.web.nhl.com/api/v1/schedule/?startDate{todays_date}&endDate={todays_date}')
+
+    for game in data['dates'][0]['games']:
+        if int(game_id) == game['gamePk']:
+            return (
+                f"{game['teams']['away']['team']['name']} {game['teams']['away']['score']} VS {game['teams']['home']['team']['name']} {game['teams']['home']['score']}"
+            )
+
+
+def get_todays_game_ids():
+    data = fetch_data(update=True, json_cache=f'{CACHE_DIR}games_today.json',
+                      url=f'https://statsapi.web.nhl.com/api/v1/schedule/?startDate{TODAYS_DATE}&endDate={TODAYS_DATE}')
 
     list_of_game_ids = []
 
@@ -200,7 +217,7 @@ def get_todays_game_ids():
     return list_of_game_ids
 
 
-def ticker(game_id, period):
+def game_plays_report(game_id, period):
     """
     shows every play of a game
     :param game_id:
@@ -209,11 +226,11 @@ def ticker(game_id, period):
     """
 
     # If there is no game feed directory, create one to store the cache files
-    FEED_DIR = 'live_feeds/'
+    FEED_DIR = 'game_plays/'
     if not os.path.exists(f'{CACHE_DIR}{FEED_DIR}'):
         os.mkdir(f'{CACHE_DIR}{FEED_DIR}')
 
-    data = fetch_data(update=True, json_cache=f'{CACHE_DIR}{FEED_DIR}{game_id}_game_feed_{timecode}.json',
+    data = fetch_data(update=False, json_cache=f'{CACHE_DIR}{FEED_DIR}{game_id}_P{period}_plays.json',
                       url=f'https://statsapi.web.nhl.com/api/v1/game/{game_id}/feed/live')
 
     if data['gameData']['status']['detailedState'] == "Pre-Game":
@@ -254,79 +271,77 @@ def ticker(game_id, period):
             # time.sleep(.75)
 
 
-def json_diff_detect():
+def game_ending_time(game_id):
+    data = fetch_data(update=False, json_cache=f'{CACHE_DIR}games_today.json',
+                      url=f'https://statsapi.web.nhl.com/api/v1/schedule/?startDate{TODAYS_DATE}&endDate={TODAYS_DATE}')
+
+    games_data = data['dates'][0]['games']
+    for game in games_data:
+        if str(game['gamePk']) == game_id:
+            time_data = game['gameDate']
+            format_data = "%Y-%m-%dT%H:%M:%SZ"
+            date_obj = datetime.strptime(time_data, format_data)
+            ending_time = date_obj + timedelta(hours=7)
+
+            # print(ending_time)
+            return ending_time
+
+
+def live_ticker(game_id):
 
     FEED_DIR = 'live_feeds/'
 
-    if not os.path.exists(f'{CACHE_DIR}{FEED_DIR}'):
-        os.mkdir(f'{CACHE_DIR}{FEED_DIR}')
-
-    game_id = 2022030155
-
-
-    # while True:
-
-    # monitor cache directory for comparison, by counting files and deleting after two files are created
-    file_count = 0
-
     dir_path = f"{CACHE_DIR}{FEED_DIR}"
-    for path in os.scandir(dir_path):
-        if path.is_file():
-            file_count += 1
-    print('file count:', file_count)
 
+    if not os.path.exists(f'{dir_path}'):
+        os.mkdir(f'{dir_path}')
 
+    # while current time is less than game start time plus 3.5 hours
+    # while NOW < game_ending_time(game_id):
+    recently_ticked_play = []
+    ticks = 0
 
-    # get the latest json response
-    data = fetch_data(update=True, json_cache=f'{CACHE_DIR}{FEED_DIR}{game_id}_game_feed_{timecode}.json',
-                      url=f'https://statsapi.web.nhl.com/api/v1/game/{game_id}/feed/live')
+    #while datetime.now() < game_ending_time(game_id):
+    while True:
+        headline_msg = game_id_to_headline_message(game_id)
+        print(f"We are watching {headline_msg}", end="")
+        # Time stuff
+        NOW = datetime.now() + timedelta(hours=7)
+        now_str = str(NOW)
+        TIMECODE = now_str[11:19]
 
-
-    # display the latest play if only 1 json file present
-    if file_count <= 1:
-        first_file = os.listdir(dir_path)[0]
+        # get the latest json response
+        data = fetch_data(update=True, json_cache=f'{dir_path}{game_id}_feed.json',
+                          url=f'https://statsapi.web.nhl.com/api/v1/game/{game_id}/feed/live')
 
         all_plays = data['liveData']['plays']['allPlays']
-        print(all_plays[len(all_plays) - 1]['result']['description'])
+        latest_play = f"{all_plays[len(all_plays) - 1]['result']['event'].upper()}, {all_plays[len(all_plays) - 1]['about']['ordinalNum']} P {all_plays[len(all_plays) - 1]['about']['periodTimeRemaining']}, {all_plays[len(all_plays) - 1]['result']['description']}, @ {all_plays[len(all_plays) - 1]['about']['dateTime'][11:19]}"
+
+        # f"{list_of_events[event]['result']['event']} ({list_of_events[event]['about']['ordinalNum']} P, {list_of_events[event]['about']['periodTimeRemaining']}): {list_of_events[event]['result']['description']}, @ {list_of_events[event]['about']['dateTime'][11:19]}")
+
+        if ticks == 0:
+            print(f"\nTick #{ticks + 1}: {latest_play}")
+            recently_ticked_play.append(latest_play)
+            ticks += 1
+
+        elif ticks > 0 and latest_play not in recently_ticked_play:
+            print(f"\nTick #{ticks + 1}: {latest_play}")
+            recently_ticked_play.clear()
+            recently_ticked_play.append(latest_play)
+            ticks += 1
+
+        # print(ticks)
+
+        time.sleep(3)
 
 
-    # display the latest play only if the json response has been updated
-    elif file_count >= 2:
-        first_file = os.listdir(dir_path)[0]
-        second_file = os.listdir(dir_path)[1]
+def count_files_in_dir(my_dir):
+    amount_of_files = 0
+    for path in os.scandir(my_dir):
+        if path.is_file():
+            amount_of_files += 1
 
-        file1_hash = ""
-        file2_hash = ""
-
-        with open(f"{CACHE_DIR}{FEED_DIR}{first_file}", "rb") as f1:
-            file1_hash = hashlib.md5(f1.read()).hexdigest()
-        with open(f"{CACHE_DIR}{FEED_DIR}{second_file}", "rb") as f2:
-            file2_hash = hashlib.md5(f2.read()).hexdigest()
-
-        '''
-        if contents json file 2 is different that contents of json file 1
-        print the latest play
-        '''
-        if file1_hash == file2_hash:
-            print('No updates')
-
-            time.sleep(3)
-
-        else:
-            print("New Plays have happened")
-            all_plays = data['liveData']['plays']['allPlays']
-            print(all_plays[len(all_plays) - 1]['result']['description'])
-
-        # remove the oldest file since it is no longer needed
-        os.remove(f"{CACHE_DIR}{FEED_DIR}{first_file}")
-
-
-# get another json response
-
-# compare it to the first one, if different, display the latest play
-
-# let the api rest...
-# time.sleep(10)
+    return amount_of_files
 
 
 if __name__ == '__main__':
@@ -334,13 +349,15 @@ if __name__ == '__main__':
     Logic to process program based on command line arguments
     EX. If the user enters 'roster' followed by a team abbreviation, that team's roster will be obtained
     """
-if len(sys.argv) >= 3 and sys.argv[1] == 'roster':
-    create_team_roster_json(sys.argv[2].upper())
-elif len(sys.argv) >= 2 and sys.argv[1] == 'id_lookup':
-    team_id_lookup(sys.argv[2])
-elif len(sys.argv) >= 2 and sys.argv[1] == 'help':
-    team_id_lookup(sys.argv[2])
-elif len(sys.argv) >= 3 and sys.argv[1] == 'ticker':
-    ticker(sys.argv[2], sys.argv[3].upper())
-else:
-    globals()[sys.argv[1]]()
+    if len(sys.argv) >= 3 and sys.argv[1] == 'roster':
+        create_team_roster_json(sys.argv[2].upper())
+    elif len(sys.argv) >= 2 and sys.argv[1] == 'id_lookup':
+        team_id_lookup(sys.argv[2])
+    elif len(sys.argv) >= 3 and sys.argv[1] == 'report':
+        game_plays_report(sys.argv[2], sys.argv[3].upper())
+    elif len(sys.argv) >= 3 and sys.argv[1] == 'ticker':
+        live_ticker(sys.argv[2])
+    elif len(sys.argv) >= 3 and sys.argv[1] == 'ending_time':
+        game_ending_time(sys.argv[2])
+    else:
+        globals()[sys.argv[1]]()
