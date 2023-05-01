@@ -239,12 +239,11 @@ def game_plays_report(game_id, period):
     else:
         list_of_events = data['liveData']['plays']['allPlays']
 
+        '''# Loop through the api data backwards
+        for event in reversed(range(len(list_of_events))):'''
+
         # Loop through the api data forwards
-        '''
         for event in range(len(list_of_events)):
-        '''
-        # Loop through the api data backwards
-        for event in reversed(range(len(list_of_events))):
             if period == 'ALL':
                 print(
                     f"{list_of_events[event]['result']['event']} ({list_of_events[event]['about']['ordinalNum']} P, {list_of_events[event]['about']['periodTimeRemaining']}): {list_of_events[event]['result']['description']}, @ {list_of_events[event]['about']['dateTime'][11:19]}")
@@ -267,6 +266,9 @@ def game_plays_report(game_id, period):
                     "You must enter in a game id and a period.  Ex 'python main.py ticker 2022030135 1' would give you the first period plays of period 1")
                 break
 
+        # make json file of game metrics
+
+
 
 def game_ending_time(game_id):
     data = fetch_data(update=False, json_cache=f'{CACHE_DIR}games_today.json',
@@ -280,11 +282,13 @@ def game_ending_time(game_id):
             date_obj = datetime.strptime(time_data, format_data)
             ending_time = date_obj + timedelta(hours=4)
 
-            print(ending_time)
+            # print(ending_time)
             return ending_time
 
 
 def live_ticker(game_id):
+    headline_msg = game_id_to_headline_message(game_id)
+    print(f"We are watching {headline_msg}")
     FEED_DIR = 'live_feeds/'
 
     dir_path = f"{CACHE_DIR}{FEED_DIR}"
@@ -296,10 +300,9 @@ def live_ticker(game_id):
     ticks = 0
 
     # while current time is less than game start time plus 4 hours
-    #while datetime.now() < game_ending_time(game_id):
+    '''while datetime.now() < game_ending_time(game_id):'''
     while True:
-        headline_msg = game_id_to_headline_message(game_id)
-        print(f"We are watching {headline_msg}", end="")
+        # print(recently_ticked_play)
         # Time stuff
         NOW = datetime.now() + timedelta(hours=7)
         now_str = str(NOW)
@@ -311,23 +314,24 @@ def live_ticker(game_id):
 
         all_plays = data['liveData']['plays']['allPlays']
         latest_play = f"{all_plays[len(all_plays) - 1]['result']['event'].upper()}, {all_plays[len(all_plays) - 1]['about']['ordinalNum']} P {all_plays[len(all_plays) - 1]['about']['periodTimeRemaining']}, {all_plays[len(all_plays) - 1]['result']['description']}, @ {all_plays[len(all_plays) - 1]['about']['dateTime'][11:19]}"
-
+        print(latest_play, end='')
+        print("\r", end="")
         # f"{list_of_events[event]['result']['event']} ({list_of_events[event]['about']['ordinalNum']} P, {list_of_events[event]['about']['periodTimeRemaining']}): {list_of_events[event]['result']['description']}, @ {list_of_events[event]['about']['dateTime'][11:19]}")
 
-        if ticks == 0:
-            print(f"\nTick #{ticks + 1}: {latest_play}")
+        '''if ticks == 0:
+            print(f"Tick #{ticks + 1}: {latest_play}")
             recently_ticked_play.append(latest_play)
             ticks += 1
 
         elif ticks > 0 and latest_play not in recently_ticked_play:
-            print(f"\nTick #{ticks + 1}: {latest_play}")
+            print(f"Tick #{ticks + 1}: {latest_play}")
             recently_ticked_play.clear()
             recently_ticked_play.append(latest_play)
-            ticks += 1
+            ticks += 1'''
 
         # print(ticks)
 
-        time.sleep(3)
+        time.sleep(1)
 
 
 def count_files_in_dir(my_dir):
